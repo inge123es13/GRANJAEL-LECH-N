@@ -68,111 +68,112 @@
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDMnIdtiIvUYP6e68hTCG8XFDzEUz9TT80",
-    authDomain: "granja-71b1b.firebaseapp.com",
-    projectId: "granja-71b1b",
-    storageBucket: "granja-71b1b.appspot.com",
-    messagingSenderId: "93657318490",
-    appId: "1:93657318490:web:31aa06cd5cc23894ac4463",
-    measurementId: "G-SG7MDJRJX8"
-  };
+// --- Configuración Firebase ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDMnIdtiIvUYP6e68hTCG8XFDzEUz9TT80",
+  authDomain: "granja-71b1b.firebaseapp.com",
+  projectId: "granja-71b1b",
+  storageBucket: "granja-71b1b.appspot.com", // <- IMPORTANTE
+  messagingSenderId: "93657318490",
+  appId: "1:93657318490:web:31aa06cd5cc23894ac4463",
+  measurementId: "G-SG7MDJRJX8"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const storage = getStorage(app);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-  function sumarDias(fecha, dias){ let f=new Date(fecha); f.setDate(f.getDate()+dias); return f; }
-  function formatearFecha(fecha){ return new Date(fecha).toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' }); }
+// --- Funciones ---
+function sumarDias(fecha, dias){ let f=new Date(fecha); f.setDate(f.getDate()+dias); return f; }
+function formatearFecha(fecha){ return new Date(fecha).toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' }); }
 
-  // --- PUERCOS ---
-  async function agregarPuerco(){
-    let nombre=document.getElementById('nombre').value.trim();
-    let diaMonta=document.getElementById('diaMonta').value;
-    if(!nombre || !diaMonta){ alert("Completa todos los campos"); return; }
-    let fechaMonta=new Date(diaMonta+"T00:00:00");
-    let revision=sumarDias(fechaMonta,18);
-    let parto=sumarDias(fechaMonta,114);
-    let proximoCelo=sumarDias(parto,26);
-    await addDoc(collection(db,"puercos"), {nombre,diaMonta:fechaMonta.toISOString(),revision:revision.toISOString(),parto:parto.toISOString(),proximoCelo:proximoCelo.toISOString()});
-    mostrarTabla();
-    document.getElementById('nombre').value="";
-    document.getElementById('diaMonta').value=new Date().toISOString().split("T")[0];
-  }
+// --- PUERCOS ---
+async function agregarPuerco(){
+  let nombre=document.getElementById('nombre').value.trim();
+  let diaMonta=document.getElementById('diaMonta').value;
+  if(!nombre || !diaMonta){ alert("Completa todos los campos"); return; }
+  let fechaMonta=new Date(diaMonta+"T00:00:00");
+  let revision=sumarDias(fechaMonta,18);
+  let parto=sumarDias(fechaMonta,114);
+  let proximoCelo=sumarDias(parto,26);
+  await addDoc(collection(db,"puercos"), {nombre,diaMonta:fechaMonta.toISOString(),revision:revision.toISOString(),parto:parto.toISOString(),proximoCelo:proximoCelo.toISOString()});
+  mostrarTabla();
+  document.getElementById('nombre').value="";
+  document.getElementById('diaMonta').value=new Date().toISOString().split("T")[0];
+}
 
-  async function mostrarTabla(){
-    const orden=document.getElementById('ordenTabla').value;
-    let snapshot=await getDocs(collection(db,"puercos"));
-    let datos=snapshot.docs.map(d=>({id:d.id,...d.data()}));
-    datos.sort((a,b)=>orden==='antiguos'?new Date(a.diaMonta)-new Date(b.diaMonta):new Date(b.diaMonta)-new Date(a.diaMonta));
-    const tabla=document.getElementById('tablaPuerkos');
-    tabla.innerHTML="";
-    datos.forEach(p=>{
-      tabla.innerHTML+=`<tr>
-        <td>${p.nombre}</td>
-        <td>${formatearFecha(p.diaMonta)}</td>
-        <td>${formatearFecha(p.revision)}</td>
-        <td>${formatearFecha(p.parto)}</td>
-        <td>${formatearFecha(p.proximoCelo)}</td>
-        <td>
-          <button onclick="actualizarPuerco('${p.id}')">Actualizar</button>
-          <button onclick="eliminarPuerco('${p.id}')" style="background:#e63946;">Eliminar</button>
-        </td>
-      </tr>`;
-    });
-  }
-
-  async function eliminarPuerco(id){ if(confirm("Eliminar puerco?")){ await deleteDoc(doc(db,"puercos",id)); mostrarTabla(); } }
-  async function actualizarPuerco(id){
-    let nuevaFecha=prompt("Nueva fecha de monta (YYYY-MM-DD):");
-    if(!nuevaFecha) return;
-    let fechaMonta=new Date(nuevaFecha+"T00:00:00");
-    if(isNaN(fechaMonta)){ alert("Fecha inválida"); return; }
-    await updateDoc(doc(db,"puercos",id),{
-      diaMonta:fechaMonta.toISOString(),
-      revision:sumarDias(fechaMonta,18).toISOString(),
-      parto:sumarDias(fechaMonta,114).toISOString(),
-      proximoCelo:sumarDias(sumarDias(fechaMonta,114),26).toISOString()
-    });
-    mostrarTabla();
-  }
-
-  // --- EMPLEADO DEL MES ---
-  async function agregarFotoEmpleado(){
-    let input=document.getElementById('fotoEmpleado');
-    if(input.files && input.files[0]){
-      let file=input.files[0];
-      let fileRef=ref(storage,'empleados/'+file.name);
-      await uploadBytes(fileRef,file);
-      let url=await getDownloadURL(fileRef);
-      await addDoc(collection(db,"fotosEmpleado"),{url});
-      mostrarFotosEmpleado();
-    }
-  }
-
-  async function mostrarFotosEmpleado(){
-    let cont=document.getElementById('fotosEmpleado');
-    cont.innerHTML="";
-    let snapshot=await getDocs(collection(db,"fotosEmpleado"));
-    snapshot.docs.forEach(docItem=>{
-      let f=docItem.data();
-      let div=document.createElement("div");
-      let img=document.createElement("img"); img.src=f.url;
-      let btn=document.createElement("button"); btn.textContent="X";
-      btn.onclick=async()=>{await deleteDoc(doc(db,"fotosEmpleado",docItem.id)); mostrarFotosEmpleado();}
-      div.appendChild(img); div.appendChild(btn); cont.appendChild(div);
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", ()=>{
-    document.getElementById('diaMonta').value=new Date().toISOString().split("T")[0];
-    mostrarTabla(); mostrarFotosEmpleado();
+async function mostrarTabla(){
+  const orden=document.getElementById('ordenTabla').value;
+  let snapshot=await getDocs(collection(db,"puercos"));
+  let datos=snapshot.docs.map(d=>({id:d.id,...d.data()}));
+  datos.sort((a,b)=>orden==='antiguos'?new Date(a.diaMonta)-new Date(b.diaMonta):new Date(b.diaMonta)-new Date(a.diaMonta));
+  const tabla=document.getElementById('tablaPuerkos');
+  tabla.innerHTML="";
+  datos.forEach(p=>{
+    tabla.innerHTML+=`<tr>
+      <td>${p.nombre}</td>
+      <td>${formatearFecha(p.diaMonta)}</td>
+      <td>${formatearFecha(p.revision)}</td>
+      <td>${formatearFecha(p.parto)}</td>
+      <td>${formatearFecha(p.proximoCelo)}</td>
+      <td>
+        <button onclick="actualizarPuerco('${p.id}')">Actualizar</button>
+        <button onclick="eliminarPuerco('${p.id}')" style="background:#e63946;">Eliminar</button>
+      </td>
+    </tr>`;
   });
+}
 
+async function eliminarPuerco(id){ if(confirm("Eliminar puerco?")){ await deleteDoc(doc(db,"puercos",id)); mostrarTabla(); } }
+async function actualizarPuerco(id){
+  let nuevaFecha=prompt("Nueva fecha de monta (YYYY-MM-DD):");
+  if(!nuevaFecha) return;
+  let fechaMonta=new Date(nuevaFecha+"T00:00:00");
+  if(isNaN(fechaMonta)){ alert("Fecha inválida"); return; }
+  await updateDoc(doc(db,"puercos",id),{
+    diaMonta:fechaMonta.toISOString(),
+    revision:sumarDias(fechaMonta,18).toISOString(),
+    parto:sumarDias(fechaMonta,114).toISOString(),
+    proximoCelo:sumarDias(sumarDias(fechaMonta,114),26).toISOString()
+  });
+  mostrarTabla();
+}
+
+// --- EMPLEADO DEL MES ---
+async function agregarFotoEmpleado(){
+  let input=document.getElementById('fotoEmpleado');
+  if(input.files && input.files[0]){
+    let file=input.files[0];
+    let fileRef=ref(storage,'empleados/'+file.name);
+    await uploadBytes(fileRef,file);
+    let url=await getDownloadURL(fileRef);
+    await addDoc(collection(db,"fotosEmpleado"),{url});
+    mostrarFotosEmpleado();
+  }
+}
+
+async function mostrarFotosEmpleado(){
+  let cont=document.getElementById('fotosEmpleado');
+  cont.innerHTML="";
+  let snapshot=await getDocs(collection(db,"fotosEmpleado"));
+  snapshot.docs.forEach(docItem=>{
+    let f=docItem.data();
+    let div=document.createElement("div");
+    let img=document.createElement("img"); img.src=f.url;
+    let btn=document.createElement("button"); btn.textContent="X";
+    btn.onclick=async()=>{await deleteDoc(doc(db,"fotosEmpleado",docItem.id)); mostrarFotosEmpleado();}
+    div.appendChild(img); div.appendChild(btn); cont.appendChild(div);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById('diaMonta').value=new Date().toISOString().split("T")[0];
+  mostrarTabla(); mostrarFotosEmpleado();
+});
 </script>
 </body>
 </html>
